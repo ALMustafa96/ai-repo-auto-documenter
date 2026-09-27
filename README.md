@@ -1,116 +1,67 @@
-To create a full README.md from the provided code, we need to follow these steps:
+# AI Repo Auto-Documenter
 
-1.  **Scan the repository**: We need to scan the repository to gather information about its structure, files, and content. This is done by calling the `scanRepository` function, which returns an object containing the `structureTree`, `fileContents`, and the total number of files scanned.
+**English:** A CLI tool that analyzes any local code repository and automatically generates a professional, detailed `README.md` file — powered entirely by a local AI model (Ollama), completely free and working offline with no API costs.
 
-2.  **Build the prompt**: We need to build a prompt for the Ollama model. This is done by calling the `buildPrompt` function, which returns an object containing the `systemPrompt` and `userPrompt`.
+**العربية:** أداة سطر أوامر (CLI) تقوم بتحليل أي مستودع كود محلي وتولّد تلقائيًا ملف `README.md` احترافي ومفصّل — تعمل بالكامل عبر نموذج ذكاء اصطناعي محلي (Ollama)، مجانية تمامًا وتعمل بدون إنترنت وبدون أي تكلفة على واجهات برمجية خارجية.
 
-3.  **Generate the README**: We need to generate the full README.md by calling the `generateReadme` function, which takes the `systemPrompt` and `userPrompt` as input. This function returns the raw Markdown content.
+---
 
-Here's the complete code:
+## ✨ Features
 
-```javascript
-import fs from "fs";
-import path from "path";
-import { glob } from "glob";
-import OpenAI from "openai";
-import { buildPrompt, generateReadme } from "./generator";
+- 🔍 Scans your repository structure and important source files
+- 🧠 Uses a local AI model (via Ollama) to understand and describe your project
+- 🚫 Automatically ignores node_modules, .git, build artifacts, and binary files
+- 💰 100% free — no API key, no billing, no internet required after setup
+- ⚡ Simple CLI usage: one command generates a full README
 
-const EXCLUDED_SEGMENTS = [
-  "node_modules",
-  ".git",
-  "dist",
-  "build",
-  ".next",
-  "venv",
-  "__pycache__",
-];
+## 🛠️ Tech Stack
 
-const EXCLUDED_EXTENSIONS = [
-  ".lock", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
-  ".mp4", ".mov", ".zip", ".pdf",
-];
+- Node.js (ES Modules)
+- Commander.js — CLI argument parsing
+- Ollama — local LLM inference
+- glob — file scanning
 
-const IMPORTANT_EXTENSIONS = [
-  ".js", ".jsx", ".ts", ".tsx", ".py", ".go", ".rs", ".java",
-  ".rb", ".php", ".c", ".cpp", ".h", ".json", ".md", ".yml", ".yaml",
-  ".toml", ".sh",
-];
+## 📦 Installation
 
-const MAX_FILE_SIZE_BYTES = 50 * 1024;
-const MAX_TOTAL_CHARS = 60000;
+git clone https://github.com/USERNAME/ai-repo-auto-documenter.git
+cd ai-repo-auto-documenter
+npm install
+npm link
 
-async function scanRepository(rootDir) {
-  const allFiles = await glob("**/*", {
-    cwd: rootDir,
-    dot: true,
-    nodir: true,
-  });
+### Prerequisites
 
-  const relevantFiles = allFiles.filter((relativePath) => !EXCLUDED_SEGMENTS.includes(path.basename(relativePath)));
+1. Install Ollama from https://ollama.com/download
+2. Pull a local model: ollama pull llama3.2:3b
+3. Make sure Ollama is running: brew services start ollama
 
-  const treeLines = relevantFiles.sort().map((f) => `  - ${f}`);
-  const structureTree = treeLines.join("\n");
+## 🚀 Usage
 
-  const fileContents = [];
-  let totalChars = 0;
+ai-doc /path/to/your/project
 
-  for (const relativePath of relevantFiles) {
-    const ext = path.extname(relativePath);
-    if (!IMPORTANT_EXTENSIONS.includes(ext)) continue;
+This generates a README.md file directly inside the target directory.
 
-    const absolutePath = path.join(rootDir, relativePath);
-    const stats = fs.statSync(absolutePath);
+### Options
 
-    if (stats.size > MAX_FILE_SIZE_BYTES) continue;
-    if (totalChars >= MAX_TOTAL_CHARS) break;
+| Flag | Description | Default |
+|------|-------------|---------|
+| -o, --output <filename> | Output filename | README.md |
 
-    const content = fs.readFileSync(absolutePath, "utf-8");
-    const remainingBudget = MAX_TOTAL_CHARS - totalChars;
-    const trimmedContent = content.slice(0, remainingBudget);
+Example: ai-doc . -o GENERATED_README.md
 
-    fileContents.push({ filePath: relativePath, content: trimmedContent });
-    totalChars += trimmedContent.length;
-  }
+## 📂 Project Structure
 
-  return { structureTree, fileContents, totalFilesScanned: relevantFiles.length };
-}
+ai-repo-auto-documenter/
+├── bin/cli.js           - CLI entry point
+├── src/fileScanner.js   - Scans & filters repository files
+├── src/promptBuilder.js - Builds the AI prompt
+├── src/generator.js     - Calls the local Ollama model
+├── package.json
+└── README.md
 
-async function generateReadme({ systemPrompt, userPrompt }) {
-  const client = new OpenAI({
-    baseURL: "http://localhost:11434/v1",
-    apiKey: "ollama",
-  });
+## 🤝 Contributing
 
-  const response = await client.chat.completions.create({
-    model: "llama3.2:3b",
-    temperature: 0.4,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-  });
+Contributions are welcome! Feel free to open an issue or submit a pull request.
 
-  const readmeContent = response.choices[0]?.message?.content;
+## 📄 License
 
-  if (!readmeContent) {
-    throw new Error("Ollama returned an empty response.");
-  }
-
-  return readmeContent;
-}
-
-async function main() {
-  const rootDir = path.resolve(__dirname, "../test-project");
-  const { structureTree, fileContents, totalFilesScanned } = await scanRepository(rootDir);
-
-  const { systemPrompt, userPrompt } = buildPrompt({ structureTree, fileContents, projectName: "test-project" });
-
-  const readmeContent = await generateReadme({ systemPrompt, userPrompt });
-
-  console.log(readmeContent);
-}
-
-main();
-```
-
-This code scans the repository, builds the prompt, generates the README, and prints it to the console. Make sure to replace the `rootDir` variable with the actual path to your test project.
+This project is licensed under the MIT License — see the LICENSE file for details.
